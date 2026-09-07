@@ -1,8 +1,24 @@
 ﻿using System;
 using System.Globalization;
+using System.IO;
+using System.Text.Json;
 
 namespace StockQuoteAlert
 {
+    public class AppConfig
+    {
+        public EmailSettings EmailSettings {get; set;}
+    }
+
+    public class EmailSettings
+    {
+        public string DestinationEmail {get; set;}
+        public string SmtpHost {get; set;}
+        public int SmtpPort {get; set;}
+        public string SmtpUser {get; set;}
+        public string SmtpPass {get; set;}
+        public bool EnableSsl {get; set;}
+    }
     class Program
     {
         static void Main(string[] args)
@@ -29,6 +45,12 @@ namespace StockQuoteAlert
             Console.WriteLine($"Ativo: {ticker}");
             Console.WriteLine($"Preco de venda: {sellPrice}");
             Console.WriteLine($"Preço de compra: {buyPrice}");
+
+            string jsonText = File.ReadAllText("appsettings.json");
+            AppConfig config = JsonSerializer.Deserialize<AppConfig>(jsonText);
+
+            Console.WriteLine($"E-mail de destino: {config.EmailSettings.DestinationEmail}");
+
         }
     }
 }

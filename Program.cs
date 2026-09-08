@@ -2,6 +2,7 @@
 using System.Globalization;
 using System.IO;
 using System.Net;
+using System.Net.Http;
 using System.Net.Mail;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -26,12 +27,13 @@ namespace StockQuoteAlert
     public class StockService
     {
         private HttpClient httpClient = new HttpClient();
-
+    
+        // funcao para consultar a cotacao de uma acao usando o Yahoo Finance
         public async Task<double> GetCurrentPrice(string ticker)
         {
             string url = $"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}.SA";
 
-            httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozila/5.0");
+            httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
 
             string json = await httpClient.GetStringAsync(url);
 
@@ -54,6 +56,7 @@ namespace StockQuoteAlert
             settings = setting;
         }
 
+        // funcao para mandar o email de alerta
         public void SendEmail(string ticker, double price, string action)
         {
             try
@@ -73,7 +76,9 @@ namespace StockQuoteAlert
                 smtp.Dispose();
                 email.Dispose();
 
+                Console.WriteLine($"É aconselhado a {action} desse ativo");
                 Console.WriteLine($"Email enviado para {settings.DestinationEmail}");
+                Console.WriteLine("=========================================");
             }
             catch (Exception ex)
             {
@@ -88,7 +93,7 @@ namespace StockQuoteAlert
 
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
 
-            // Lendo os 3 valores
+            // verificando a entrada
             if (args.Length != 3)
             {
                 Console.WriteLine("A entrada tem que estar nesse formato: stock-quote-alert.exe <ATIVO> <PRECO_VENDA> <PRECO_COMPRA>");
@@ -97,29 +102,52 @@ namespace StockQuoteAlert
 
             string ticker = args[0].ToUpper();
 
-            // Garantindo que os precos sejam valores numericos
             if (!double.TryParse(args[1], out double sellPrice) || !double.TryParse(args[2], out double buyPrice))
             {
                 Console.WriteLine("Erro: Os preços devem ser valores numéricos válidos.");
                 return;
             }
 
-            Console.WriteLine($"Ativo: {ticker}");
-            Console.WriteLine($"Preco de venda: {sellPrice}");
-            Console.WriteLine($"Preço de compra: {buyPrice}");
-
+            // leitura do arquivo de configuracao
             string jsonText = File.ReadAllText("appsettings.json");
             AppConfig config = JsonSerializer.Deserialize<AppConfig>(jsonText);
 
-            Console.WriteLine($"E-mail de destino: {config.EmailSettings.DestinationEmail}");
-
+            // monitoramento da acao
             var StockService = new StockService();
-            double preco = await StockService.GetCurrentPrice(ticker);
-
-            Console.WriteLine($"Cotação atual de {ticker}: {preco}");
-
             var EmailService = new EmailService(config.EmailSettings);
-            EmailService.SendEmail(ticker, preco, "teste");
+
+            while (true)
+            {
+                try
+                {
+                    // preco atual da acao
+                    double preco = await StockService.GetCurrentPrice(ticker);
+                    Console.WriteLine($"Horário: {DateTime.Now:HH:mm:ss}");
+                    Console.WriteLine($"Cotação de {ticker}: R$ {preco}");
+
+                    if (preco >= sellPrice)
+                    {
+                        EmailService.SendEmail(ticker, preco, "venda");
+                    }
+                    else if (preco <= buyPrice)
+                    {
+                        EmailService.SendEmail(ticker, preco, "compra");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Cotação dentro do intervalo");
+                    }
+
+                    await Task.Delay(1800000); // intervalo de 30 minutos para a próxima consulta
+                    
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Erro: {ex}");
+
+                    await Task.Delay(10000); // intervalo de 10 segundos para tentar novamente
+                }
+            }
 
         }
     }

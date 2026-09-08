@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Globalization;
 using System.IO;
+using System.Net;
+using System.Net.Mail;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -20,7 +22,7 @@ namespace StockQuoteAlert
         public string SmtpPass {get; set;}
         public bool EnableSsl {get; set;}
     }
-    
+
     public class StockService
     {
         private HttpClient httpClient = new HttpClient();
@@ -40,6 +42,43 @@ namespace StockQuoteAlert
                 return price;
             }
             
+        }
+    }
+
+    public class EmailService
+    {
+        public EmailSettings settings;
+
+        public EmailService(EmailSettings setting)
+        {
+            settings = setting;
+        }
+
+        public void SendEmail(string ticker, double price, string action)
+        {
+            try
+            {
+                MailMessage email = new MailMessage(settings.SmtpUser, settings.DestinationEmail);
+
+                email.Subject = $"Aviso de cotação: {ticker}";
+                email.Body = $"O ativo {ticker} está com a cotação em R$ {price}.\nÉ aconselhado a {action} desse ativo.";
+
+                SmtpClient smtp = new SmtpClient(settings.SmtpHost, settings.SmtpPort);
+
+                smtp.Credentials = new NetworkCredential(settings.SmtpUser, settings.SmtpPass);
+                smtp.EnableSsl = settings.EnableSsl;
+
+                smtp.Send(email);
+
+                smtp.Dispose();
+                email.Dispose();
+
+                Console.WriteLine($"Email enviado para {settings.DestinationEmail}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erro: {ex.Message}");
+            }
         }
     }
     class Program
@@ -75,9 +114,12 @@ namespace StockQuoteAlert
             Console.WriteLine($"E-mail de destino: {config.EmailSettings.DestinationEmail}");
 
             var StockService = new StockService();
-            double precoAtual = await StockService.GetCurrentPrice(ticker);
+            double preco = await StockService.GetCurrentPrice(ticker);
 
-            Console.WriteLine($"Cotação atual de {ticker}: {precoAtual}");
+            Console.WriteLine($"Cotação atual de {ticker}: {preco}");
+
+            var EmailService = new EmailService(config.EmailSettings);
+            EmailService.SendEmail(ticker, preco, "teste");
 
         }
     }

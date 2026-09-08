@@ -2,6 +2,7 @@
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace StockQuoteAlert
 {
@@ -19,9 +20,31 @@ namespace StockQuoteAlert
         public string SmtpPass {get; set;}
         public bool EnableSsl {get; set;}
     }
+    
+    public class StockService
+    {
+        private HttpClient httpClient = new HttpClient();
+
+        public async Task<double> GetCurrentPrice(string ticker)
+        {
+            string url = $"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}.SA";
+
+            httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Mozila/5.0");
+
+            string json = await httpClient.GetStringAsync(url);
+
+            using (JsonDocument doc = JsonDocument.Parse(json))
+            {
+                double price = doc.RootElement.GetProperty("chart").GetProperty("result")[0].GetProperty("meta").GetProperty("regularMarketPrice").GetDouble();    
+                
+                return price;
+            }
+            
+        }
+    }
     class Program
     {
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
 
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
@@ -50,6 +73,11 @@ namespace StockQuoteAlert
             AppConfig config = JsonSerializer.Deserialize<AppConfig>(jsonText);
 
             Console.WriteLine($"E-mail de destino: {config.EmailSettings.DestinationEmail}");
+
+            var StockService = new StockService();
+            double precoAtual = await StockService.GetCurrentPrice(ticker);
+
+            Console.WriteLine($"Cotação atual de {ticker}: {precoAtual}");
 
         }
     }

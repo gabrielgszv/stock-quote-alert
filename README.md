@@ -27,12 +27,13 @@ Antes de executar, é necessário editar o arquivo `appsettings.json` com as cre
 
 ## Como Executar
 
-Para rodar é preciso passar 3 parâmetros no terminal: Ativo, Preço de Venda e Preço de Compra.
+Para rodar é preciso passar os parâmetros em sequência de trios: `<ATIVO>`, `<PRECO_VENDA>` e `<PRECO_COMPRA>`. É possível passar mais de um ativo no mesmo comando.
 
 **Exemplos de uso:**
-* Via codigo fonte: `dotnet run -- PETR4 22.67 22.59`
-* Via executável: `stock-quote-alert.exe PETR4 22.67 22.59`
+* Monitorando um ativo: `dotnet run -- PETR4 22.67 22.59`
+* Monitorando mais de um ativo: `dotnet run -- VALE3 77.51 77.34 ITUB4 41.81 41.39`
+* Via executável: `.\stock-quote-alert.exe PETR4 22.67 22.59`
 
 <br>
 
-Após a inicialização, o sistema monitora o ativo e assim que a cotação atinge um dos limites definidos, um email é enviado com a recomendação de ação.
+Após a inicialização, o sistema monitora os ativos e assim que a cotação atinge um dos limites definidos, um email é enviado com a recomendação de ação.

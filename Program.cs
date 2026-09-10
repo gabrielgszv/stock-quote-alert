@@ -4,6 +4,7 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Mail;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -22,6 +23,13 @@ namespace StockQuoteAlert
         public string SmtpUser {get; set;}
         public string SmtpPass {get; set;}
         public bool EnableSsl {get; set;}
+    }
+
+    public class TickerItem
+    {
+        public string Ticker {get; set;}
+        public double SellPrice {get; set;}
+        public double BuyPrice {get; set;}
     }
 
     public class StockService
@@ -94,19 +102,29 @@ namespace StockQuoteAlert
             CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
 
             // verificando a entrada
-            if (args.Length != 3)
+            if (args.Length < 3 || args.Length%3 != 0)
             {
-                Console.WriteLine("A entrada tem que estar nesse formato: stock-quote-alert.exe <ATIVO> <PRECO_VENDA> <PRECO_COMPRA>");
+                Console.WriteLine("A entrada tem que estar nesse formato: stock-quote-alert.exe <ATIVO1> <PRECO_VENDA1> <PRECO_COMPRA1> ... ");
                 return;
             }
 
-            string ticker = args[0].ToUpper();
+            // monitorando mais de uma acao
+            List<TickerItem> tickers = new List<TickerItem>();
 
-            if (!double.TryParse(args[1], out double sellPrice) || !double.TryParse(args[2], out double buyPrice))
+            for(int i = 0; i < args.Length; i+=3)
             {
-                Console.WriteLine("Erro: Os preços devem ser valores numéricos válidos.");
-                return;
-            }
+                string ticker = args[i].ToUpper();
+
+                if (!double.TryParse(args[i+1], out double sellPrice) || !double.TryParse(args[i+2], out double buyPrice))
+                {
+                    Console.WriteLine("Erro: Os preços devem ser valores numéricos válidos.");
+                    return;
+                }
+
+                TickerItem item = new TickerItem{Ticker = ticker, SellPrice = sellPrice, BuyPrice= buyPrice};
+
+                tickers.Add(item);
+            }   
 
             // leitura do arquivo de configuracao
             string jsonText = File.ReadAllText("appsettings.json");
@@ -118,35 +136,41 @@ namespace StockQuoteAlert
 
             while (true)
             {
-                try
+                foreach(var ticker in tickers)
                 {
-                    // preco atual da acao
-                    double preco = await StockService.GetCurrentPrice(ticker);
-                    Console.WriteLine($"Horário: {DateTime.Now:HH:mm:ss}");
-                    Console.WriteLine($"Cotação de {ticker}: R$ {preco}");
+                    try
+                    {
+                        // preco atual da acao
+                        double preco = await StockService.GetCurrentPrice(ticker.Ticker);
+                        Console.WriteLine($"Horário: {DateTime.Now:HH:mm:ss}");
+                        Console.WriteLine($"Cotação de {ticker.Ticker}: R$ {preco}");
 
-                    if (preco >= sellPrice)
-                    {
-                        EmailService.SendEmail(ticker, preco, "venda");
+                        if (preco >= ticker.SellPrice)
+                        {
+                            EmailService.SendEmail(ticker.Ticker, preco, "venda");
+                        }
+                        else if (preco <= ticker.BuyPrice)
+                        {
+                            EmailService.SendEmail(ticker.Ticker, preco, "compra");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Cotação dentro do intervalo");
+                            Console.WriteLine("=========================================");
+                        }
+                        
                     }
-                    else if (preco <= buyPrice)
+                    catch (Exception ex)
                     {
-                        EmailService.SendEmail(ticker, preco, "compra");
-                    }
-                    else
-                    {
-                        Console.WriteLine("Cotação dentro do intervalo");
-                    }
+                        Console.WriteLine($"Erro: {ex}");
 
-                    await Task.Delay(1800000); // intervalo de 30 minutos para a próxima consulta
-                    
+                        await Task.Delay(10000); // intervalo de 10 segundos para tentar novamente
+                    }    
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Erro: {ex}");
 
-                    await Task.Delay(10000); // intervalo de 10 segundos para tentar novamente
-                }
+                Console.WriteLine("Intervalo para a próxima consulta");
+                await Task.Delay(1800000); // intervalo de 30 minutos para a próxima consulta
+                
             }
 
         }
